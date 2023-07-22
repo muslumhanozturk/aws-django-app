@@ -1,0 +1,24 @@
+Sosyal medya sitesi ayağa kaldırıyoruz. Dünya çapında kullanıcıların foto ve video yükleyeceği yorumlar yazabileceği.Siteye parola kullanıcı adıyla girileceği. Kullanıcı adı ve parolaların gizliliğine önem verildiği bir site ayağa kaldırıyoruz.
+Foto ve videolar nerede muhafaza edilecek ? s3 te depolarız.
+username ve password girişi olacağı için nerede depolanacak? RDS bunun için uygun database ayağa kaldırıp private a koyarız. gerekli sec grup ayarlarız.
+(yeni proje geldiğinde o projeye özgü olarak vpc oluştururuz. best practice)
+vpc oluşturucaz
+database in gizlilik arz etmesi için private koyucaz.(demek ki public ve private subnetler olucak)
+Projeye özgü VPC dizayn oluşturucaz. Gizllik önemli olduğu için public ve private subler olucak, iki tane bizim için yeterli. RDS(Database kullanıcı adı ve şifreleri muhafaza ediyor.) RDS private koyucaz.(RDS seçtik çünkü elimizdeki verilere uygun tablolar işimizi görür tablolu şekiller old. için ve Aurora ya göre daha ucuz. tablolu şekiller olmasaydı dynamo db olucaktı.) subnetleri public ve private olmasını da ayarlamamız gerekiyor, public subnetlere internet gateway dizayn edicez.(vpc nin dış dünyaya çıkış noktası igw olacak.)
+Daha sonra vpc nin trafic policyleri 
+Daha sonra bu database bilgiler uygulamayı yüklediğimiz EC2 lardan gelecek Blog Website yazanlar EC2 dur. Bu EC2 ları da ASG oluşturucak. Neye göre oluşturucak Launch Template e göre LT oluşturucak. LT içinde user data olucak. ASG bu EC2 ları private subnetlerde oluşturucak. Hem EC2 lar hemde Database private ta.
+(object orianted olunca S3, içine bilgi girilecek tablolar   RDS yada herhangibir şekle bağlı olmayan veri girişi Dynamoo DB,  dosya paylaşımı için EFS, EC2 nun volumunu kullanacaksak EBS kullanıyoruz.)
+Bunların ilişkilerini security gruplarla ayarlicaz. Birbirleriniden gelen trafiğe göre ayarlayarak ekstra güvenlik katmanı oluşturucaz.
+Public subnetlerde NAT İnstance olucak, sıçrama tahtası gibi eğer bu EC2 ların internet ihtiyacı olursa güncelleme ihtiyacı veya bnim içine girme ihtiyacım olucak. EC2 lara bağlanmak için NAT instance bağlanıcaz ondan sonra EC2 lara geçiş yapıcaz. (Bast. host)
+Public subnete bir servis daha koyucaz Load Balancer, uygulamalarımızın dış dünyayla internetle yüzyüze geldiği safha. Dolayısıyla publicte olması lazım. 80 ve 443 dinleyecek. Alıcak bunu target gruba gönderecek. Target grupta ASG 'ye register olduğu için  ASG ' un ayağa kaldıracağı  bu instancelar otomatik olarak Load Blancerin target grubu olucak.
+Burda ekstra load balancer    önüne CloudFront koyucaz, hem cacheleme hem hız hem security 3 hizmeti birden karşılasın diye. Çünkü küresel çapta site istiyor müşteri.
+Sonra müşteriye yakışıklı bir domain vermemiz lazım onuda Route53 e bağlicaz. Farklı olarak Fail Over senaryosuyla bağlicaz. Primary ve Secondary oluşturucaz. Health check dizayn edicez. Herşey yolunda gittiği zaman  beni hosted zonuma habi subdomain name'im mesela muslumhanozturk.com domainim. Herşey yolunda gittiğinde capstone.muslumhanozturk.com tıklandığında o primary record çalışıcak. olurda  health check hata verdi o zaman seccondary e gidecek. Secondary de S3 bucket dizayn edicez fail over senaryosu için, içinde site geliştirilmeye devam ediyor, beklediğiniz için teşekkür ederiz gibi ifadelerin olduğu birşey oluşturucaz.
+S3 le nasıl iletişim kurucak bu EC2 lar eğer biz istersek bu EC2 lar kendilerine program sayesinde kullanıcının yüklediği(girdiği) fotoğraf ve videoları dış dünya internet vasıtasıyla S3 e ulaştırabilir  ama biz gizlilik istiyoruz o zaman ben kendi VPC'im  içinde kalarak internete çıkmadan  VPC mize özgü bir ENDPOİNT oluşturarak  S3 Etanımlicaz. Sonrada Private nin Route Table ına diyecez ki sen  dış dünyaya çıkacağın zaman bu Endpoint üzerinden çık. Ayrıca EC2 lara role tanımlicaz. S3 e yazma okuma yetkisi  S2FullAccess vericez.
+
+Load balancer için olmazsa olmaz Sec.Grp oluşturucaz. 80 ve 443 portlarını açıcaz ve heryerden trafiği dinle dicez.
+EC2 lara da 80 443 dinle  ama sadece load balancerdan gelen trafikse kabul et.
+RDS içinde sec.grp oluşturucaz sadece EC2 lardan gelen trafiği kabul et.
+NAT instance içinde bir sec.grp oluşturucaz. Herşey serbest 80 22 443 heryerden dinle.zaten public ve EC2 ların sıçrama tahtası. (4 sec.grup.)
+
+Her iki S3 bucketı da public read yapıcaz.
+Proje sonunda S3 Bucket a her veri girdiğinde Lambda fonksiyonu tetikleticez. Lambda fonksiyonuda buraya girilen bilgileri Dynamo DB ye yazdıracak.
